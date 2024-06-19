@@ -85,6 +85,7 @@ model = Sequential([
     MaxPooling2D((2, 2)),
     Flatten(),
     Dense(512, activation='relu'),
+    #Dense(256, activation='relu'),
     Dropout(0.5),
     Dense(37, activation='softmax')  # Assumendo che ci siano 37 classi
 ])
@@ -101,7 +102,6 @@ history = model.fit(
     epochs=10,  # numero di epoche, puoi cambiarlo
     validation_data=validation_generator
 )
-
 
 # Valutare il modello
 val_loss, val_acc = model.evaluate(validation_generator)
