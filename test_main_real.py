@@ -28,8 +28,8 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 #STEP 2:
 #Caricare e preprocessare il dataset
 # Percorsi ai dataset
-train_images_path = 'data/images_training_rev1'
-test_images_path = 'data/images_test_rev1'
+train_images_path = 'data/images_training_rev1/images_training_rev1'
+test_images_path = 'data/images_test_rev1/images_test_rev1'
 train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
 
 # Caricare le etichette di training
