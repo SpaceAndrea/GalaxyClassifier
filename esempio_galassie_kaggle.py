@@ -14,14 +14,14 @@ import matplotlib.pyplot as plt
 from keras.src.utils import image_dataset_from_directory
 
 # Percorsi ai dataset
-#train_images_path = 'data/images_training_rev1/images_training_rev1'
-#test_images_path = 'data/images_test_rev1/images_test_rev1'
-#train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
+train_images_path = 'data/images_training_rev1/images_training_rev1'
+test_images_path = 'data/images_test_rev1/images_test_rev1'
+train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
 
 # Percorsi ai dataset sul portatile
-train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
-test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
-train_labels_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/training_solutions_rev1/training_solutions_rev1.csv' 
+# train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
+# test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
+# train_labels_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/training_solutions_rev1/training_solutions_rev1.csv' 
 
 # Caricamento delle etichette
 train_labels_df = pd.read_csv(train_labels_path)
@@ -40,8 +40,6 @@ def create_dataset(image_paths, labels):
     dataset = dataset.shuffle(buffer_size=1000).batch(64).prefetch(buffer_size=tf.data.AUTOTUNE)
     return dataset
 
-'''
-
 # Creazione del DataFrame con i percorsi delle immagini e le etichette
 image_paths = [os.path.join(train_images_path, f"{int(img_id)}.jpg") for img_id in train_labels_df['GalaxyID']]
 labels = train_labels_df.iloc[:, 1:].values
@@ -54,14 +52,46 @@ train_dataset = create_dataset(image_paths_train, labels_train)
 val_dataset = create_dataset(image_paths_val, labels_val)
 
 # Creazione del modello della rete neurale
+#Modello CNN (rete neurale convoluzionale)
 model = Sequential([
+#Spiegazione:
+#Kernel: Un kernel (o filtro) è una matrice 2D (in questo caso 3x3) che scorre sull'immagine di input e calcola il prodotto scalare tra il kernel e la regione dell'immagine coperta dal kernel.
+#Padding: Se non viene utilizzato il padding (cioè, il padding è 'valid'), la dimensione dell'output si riduce rispetto all'input. Con un kernel 3x3, ogni convoluzione riduce la dimensione dell'immagine di 2 (1 pixel da ogni lato). Quindi, l'immagine di dimensione 64x64 diventa 62x62.
+#Numero di Filtri: Qui specifichiamo che vogliamo 32 filtri, quindi otteniamo 32 feature maps. Ogni filtro è responsabile dell'estrazione di diverse caratteristiche dall'immagine di input (bordo, texture, ecc.).
+    #Conv2D Layer (32 filtri, kernel 3x3, ReLU):
+    #Input: immagine di dimensione (64, 64, 3), cioè 64x64 pixel con 3 canali colori.
+    #Output: Un set di 32 feature maps (mappe di caratteristiche), ciascuna di dimensioni (62, 62) ***Non ho ben capito***
+    #Funzione di attivazione: ReLU introduce non-linearità.
     Conv2D(32, (3, 3), activation='relu', input_shape=(64, 64, 3)),
+    #MaxPooling2D Layer (pooling 2x2):
+    #Input: Le 32 feature maps di dimensioni (62, 62) dall'output del livello precedente (Conv2D).
+    #Output: 32 feature maps ridotte a dimensioni (31, 31) attraverso l'operazione di pooling.
+    #Operazione: Prende il massimo valore in ogni finestra 2x2 ***Non ho ben capito***
     MaxPooling2D((2, 2)),
+    #Conv2D Layer (64 filtri, kernel 3x3, ReLU):
+    #Input: Le 32 feature maps di dimensioni (31, 31) (output precedente).
+    #Output: Un set di 64 feature maps, ciascuna di dimensioni (29, 29).
+    #Funzione di Attivazione: ReLU.
     Conv2D(64, (3, 3), activation='relu'),
+    #MaxPooling2D Layer (pooling 2x2):
+    #Input: Le 64 feature maps di dimensioni (29, 29) (output precedente).
+    #Output: 64 feature maps ridotte a dimensioni (14, 14).
     MaxPooling2D((2, 2)),
+    #Flatten Layer:
+    #Input: Le 64 feature maps di dimensioni (14, 14) (output precedente).
+    #Output: Un vettore unidimensionale (1D) di lunghezza 12544 (64 * 14 * 14).
     Flatten(),
+    #Funzione: Disattiva casualmente il 50% dei neuroni durante l'addestramento per prevenire l'overfitting.
     Dropout(0.5),
+    #Dense Layer (128 neuroni, ReLU):
+    #Input: Il vettore 1D di lunghezza 12544.
+    #Output: Un vettore 1D di lunghezza 128.
+    #Funzione di Attivazione: ReLU.
     Dense(128, activation='relu'),
+    #Output Layer (37 neuroni, sigmoid):
+    #Input: Il vettore 1D di lunghezza 128.
+    #Output: Un vettore 1D di lunghezza 37, con valori tra 0 e 1.
+    #Funzione di Attivazione: Sigmoid (permette la regressione multilabel).
     Dense(37, activation='sigmoid')  # Utilizziamo sigmoid per una regressione multilabel
 ])
 
@@ -111,8 +141,6 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Validation'], loc='upper left')
 plt.show()
-
-'''
 
 #Per caricarlo in futuro:
 model = tf.keras.models.load_model('galaxy_model.keras')
