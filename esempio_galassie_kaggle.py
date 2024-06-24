@@ -18,7 +18,6 @@ from keras.src.utils import image_dataset_from_directory
 #test_images_path = 'data/images_test_rev1/images_test_rev1'
 #train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
 
-'''
 # Percorsi ai dataset sul portatile
 train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
 test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
@@ -40,6 +39,8 @@ def create_dataset(image_paths, labels):
     dataset = dataset.map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
     dataset = dataset.shuffle(buffer_size=1000).batch(64).prefetch(buffer_size=tf.data.AUTOTUNE)
     return dataset
+
+'''
 
 # Creazione del DataFrame con i percorsi delle immagini e le etichette
 image_paths = [os.path.join(train_images_path, f"{int(img_id)}.jpg") for img_id in train_labels_df['GalaxyID']]
@@ -80,22 +81,16 @@ history = model.fit(train_dataset, epochs=10, validation_data=val_dataset, callb
 model.save('galaxy_model.keras')
 print("Modello salvato in 'galaxy_model.keras'")
 
-'''
-
 #ipotetico:
-'''
+
 # Salvataggio dello storico dell'allenamento
-with open('history.json', 'w') as f:
-    json.dump(history.history, f)
-print("Storico dell'allenamento salvato in 'history.json'")
+#with open('history.json', 'w') as f:
+    #json.dump(history.history, f)
+#print("Storico dell'allenamento salvato in 'history.json'")
 
 # Carica lo storico dell'allenamento
-with open('history.json', 'r') as f:
-    history = json.load(f)
-'''
-
-#Per caricarlo in futuro:
-history = model = tf.keras.models.load_model('galaxy_model.keras')
+#with open('history.json', 'r') as f:
+    #history = json.load(f)
 
 # Plotting training & validation accuracy values
 plt.figure(figsize=(12, 4))
@@ -116,3 +111,30 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Validation'], loc='upper left')
 plt.show()
+
+'''
+
+#Per caricarlo in futuro:
+model = tf.keras.models.load_model('galaxy_model.keras')
+
+# ---- Aggiungi questa parte per fare le predizioni sui dati di test ---- #
+
+# Caricamento delle immagini di test
+test_files = os.listdir(test_images_path)
+test_image_paths = [os.path.join(test_images_path, file) for file in test_files]
+
+# Creazione del dataset tf.data per le immagini di test
+test_dataset = create_dataset(test_image_paths, labels=None)
+
+# Predizione delle etichette per il test set
+predictions = model.predict(test_dataset, verbose=1)
+
+# Creazione del DataFrame con le predizioni
+test_filenames = [os.path.basename(path) for path in test_image_paths]
+predictions_df = pd.DataFrame(predictions, columns=[f'Class{i}' for i in range(predictions.shape[1])])
+predictions_df.insert(0, 'GalaxyID', [int(f.split('.')[0]) for f in test_filenames])
+
+# Salvataggio delle predizioni in un file CSV
+predictions_df.to_csv('galaxies_predictions.csv', index=False)
+
+print("Predizioni salvate in 'galaxies_predictions.csv'")
