@@ -14,16 +14,17 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from keras.src.utils import image_dataset_from_directory
 import json
+from keras.src.regularizers import L2
 
 # # Percorsi ai dataset
-# train_images_path = 'data/images_training_rev1/images_training_rev1'
-# test_images_path = 'data/images_test_rev1/images_test_rev1'
-# train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
+train_images_path = 'data/images_training_rev1/images_training_rev1'
+test_images_path = 'data/images_test_rev1/images_test_rev1'
+train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
 
 # Percorsi ai dataset sul portatile
-train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
-test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
-train_labels_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/training_solutions_rev1/training_solutions_rev1.csv' 
+# train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
+# test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
+# train_labels_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/training_solutions_rev1/training_solutions_rev1.csv' 
 
 # Caricamento delle etichette
 train_labels_df = pd.read_csv(train_labels_path)
@@ -89,7 +90,7 @@ model = Sequential([
     #Input: immagine di dimensione (64, 64, 3), cioè 64x64 pixel con 3 canali colori.
     #Output: Un set di 32 feature maps (mappe di caratteristiche), ciascuna di dimensioni (62, 62) ***Non ho ben capito***
     #Funzione di attivazione: ReLU introduce non-linearità.
-    Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
+    Conv2D(32, (3, 3), activation='relu', kernel_regularizer=L2(0.001), input_shape=(128, 128, 3)),
     #MaxPooling2D Layer (pooling 2x2):
     #Input: Le 32 feature maps di dimensioni (62, 62) dall'output del livello precedente (Conv2D).
     #Output: 32 feature maps ridotte a dimensioni (31, 31) attraverso l'operazione di pooling.
@@ -99,7 +100,7 @@ model = Sequential([
     #Input: Le 32 feature maps di dimensioni (31, 31) (output precedente).
     #Output: Un set di 64 feature maps, ciascuna di dimensioni (29, 29).
     #Funzione di Attivazione: ReLU.
-    Conv2D(64, (3, 3), activation='relu'),
+    Conv2D(64, (3, 3), kernel_regularizer=L2(0.001), activation='relu'),
     #MaxPooling2D Layer (pooling 2x2):
     #Input: Le 64 feature maps di dimensioni (29, 29) (output precedente).
     #Output: 64 feature maps ridotte a dimensioni (14, 14).
@@ -114,7 +115,7 @@ model = Sequential([
     #Input: Il vettore 1D di lunghezza 12544.
     #Output: Un vettore 1D di lunghezza 128.
     #Funzione di Attivazione: ReLU.
-    Dense(128, activation='relu'),
+    Dense(128, activation='relu', kernel_regularizer=L2(0.001)),
     #Output Layer (37 neuroni, sigmoid):
     #Input: Il vettore 1D di lunghezza 128.
     #Output: Un vettore 1D di lunghezza 37, con valori tra 0 e 1.
@@ -131,19 +132,21 @@ model.summary()
 # Callback per l'early stopping
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
 
+'''
 # Addestramento del modello
-history = model.fit(train_dataset, epochs=10, validation_data=val_dataset, callbacks=[early_stopping])
+history = model.fit(train_dataset, epochs=20, validation_data=val_dataset, callbacks=[early_stopping])
 # Salvataggio del modello
-# model.save('galaxy_model.keras')
-# print("Modello salvato in 'galaxy_model.keras'")
-
-
-#ipotetico:
-
+model.save('galaxy_model.keras')
+print("Modello salvato in 'galaxy_model.keras'")
 # Salvataggio dello storico dell'allenamento
-# with open('history.json', 'w') as f:
-#     json.dump(history.history, f)
-# print("Storico dell'allenamento salvato in 'history.json'")
+with open('history.json', 'w') as f:
+    json.dump(history.history, f)
+print("Storico dell'allenamento salvato in 'history.json'")
+'''
+
+# Valutare il modello
+# val_loss, val_acc = model.evaluate(val_dataset)
+# print(f'Validation Loss: {val_loss}, Validation Accuracy: {val_acc}')
 
 # Carica lo storico dell'allenamento
 with open('history.json', 'r') as f:
@@ -172,12 +175,12 @@ plt.legend(loc='upper left')
 
 plt.show()
 
-
 #Per caricarlo in futuro:
-model = tf.keras.models.load_model('galaxy_model.keras')
+#model = tf.keras.models.load_model('galaxy_model.keras')
 
 # ---- Aggiungi questa parte per fare le predizioni sui dati di test ---- #
 
+'''
 # Caricamento delle immagini di test
 test_files = os.listdir(test_images_path)
 test_image_paths = [os.path.join(test_images_path, file) for file in test_files]
@@ -207,11 +210,37 @@ predictions_binary = (predictions > 0.5).astype(int)
 # Fare predizioni binarie per le etichette
 val_labels_binary = (labels_val > 0.5).astype(int)
 
-# Creare e visualizzare la confusion matrix per ogni classe
-for i in range(val_labels_binary.shape[1]):
-    cm = confusion_matrix(val_labels_binary[:, i], val_predictions_binary[:, i])
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot()
-    plt.title(f'Confusion Matrix for Class {i}')
-    plt.show()
+# # Creare e visualizzare la confusion matrix per ogni classe
+# for i in range(val_labels_binary.shape[1]):
+#     cm = confusion_matrix(val_labels_binary[:, i], val_predictions_binary[:, i])
+#     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+#     disp.plot()
+#     plt.title(f'Confusion Matrix for Class {i}')
+#     plt.show()
+
+'''
+
+#Carico il mio test prediction
+test_predictions = pd.read_csv('galaxies_predictions.csv')
+
+#Carico i benchmark
+#Benchmark con soli 1:
+benchmark_ones = pd.read_csv('benchmark/all_ones_benchmark/all_ones_benchmark.csv')
+#Benchmark con soli 0:
+benchmark_zeros = pd.read_csv('benchmark/all_zeros_benchmark/all_zeros_benchmark.csv')
+#Benchmark che valuta il pixel centrale:
+benchmark_central_pixel = pd.read_csv('benchmark/central_pixel_benchmark/central_pixel_benchmark.csv')
+
+# Funzione per calcolare l'accuratezza di un benchmark
+def calculate_accuracy(predictions, benchmark):
+    return np.mean(np.argmax(predictions.values[:, 1:], axis=1) == np.argmax(benchmark.values[:, 1:], axis=1))
+
+# Calcolo l'accuratezza paragonando le mie prediction ai benchmark
+accuracy_ones = calculate_accuracy(test_predictions, benchmark_ones)
+accuracy_zeros = calculate_accuracy(test_predictions, benchmark_zeros)
+accuracy_central_pixel = calculate_accuracy(test_predictions, benchmark_central_pixel)
+
+print(f'Accuracy with All Ones Benchmark: {accuracy_ones}')
+print(f'Accuracy with All Zeros Benchmark: {accuracy_zeros}')
+print(f'Accuracy with Central Pixel Benchmark: {accuracy_central_pixel}')
 
