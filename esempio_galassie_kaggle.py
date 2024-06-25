@@ -8,41 +8,68 @@ import pandas as pd
 import numpy as np
 import os
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from keras.src.utils import to_categorical
 from PIL import Image
 import matplotlib.pyplot as plt
 from keras.src.utils import image_dataset_from_directory
+import json
 
-# Percorsi ai dataset
-train_images_path = 'data/images_training_rev1/images_training_rev1'
-test_images_path = 'data/images_test_rev1/images_test_rev1'
-train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
+# # Percorsi ai dataset
+# train_images_path = 'data/images_training_rev1/images_training_rev1'
+# test_images_path = 'data/images_test_rev1/images_test_rev1'
+# train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
 
 # Percorsi ai dataset sul portatile
-# train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
-# test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
-# train_labels_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/training_solutions_rev1/training_solutions_rev1.csv' 
+train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
+test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
+train_labels_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/training_solutions_rev1/training_solutions_rev1.csv' 
 
 # Caricamento delle etichette
 train_labels_df = pd.read_csv(train_labels_path)
 
 # Funzione per creare il dataset tf.data
-def load_image(img_path, label):
-    img = tf.io.read_file(img_path)
-    img = tf.image.decode_jpeg(img, channels=3)
-    img = tf.image.resize(img, [64, 64])
-    img = img / 255.0  # Normalizzazione
-    return img, label
 
-def create_dataset(image_paths, labels):
-    dataset = Dataset.from_tensor_slices((image_paths, labels))
-    dataset = dataset.map(load_image, num_parallel_calls=tf.data.AUTOTUNE)
+#In sintesi:
+    #Carica l'immagine dal percorso specificato (img_path).
+    #Decodifica l'immagine come JPEG con 3 canali (RGB).
+    #Ridimensiona l'immagine a 64x64 pixel.
+    #Normalizza i valori dei pixel tra 0 e 1.
+    #Restituisce l'immagine preprocessata e l'array delle etichette.
+
+def load_image(img_path, label): #prende in input il path dell'immagine e l'etichetta associata(label)
+    img = tf.io.read_file(img_path) #memorizzo nella variabile 'img' il percorso dell'immagine come tensore grezzo di byte
+    img = tf.image.decode_jpeg(img, channels=3) #decodifica l'immagine jpeg nel tensore 'img' specificando che l'immagine ha 3 canali (RGB)
+    img = tf.image.resize(img, [128, 128]) #ridimensiona l'immagine in 64x64 pixel
+    img = img / 255.0  # Normalizzazione dei pixel dell'immagine per essere compresi tra 0 e 1 
+    return img, label #restituisco l'immagine preprocessata e l'etichetta associata
+
+#In sintesi:
+    #Crea un dataset TensorFlow dai percorsi delle immagini (image_paths) e dalle etichette (labels).
+    #Applica la funzione load_image a ciascun elemento del dataset in parallelo.
+    #Mescola il dataset con un buffer di 1000 elementi.
+    #Raggruppa gli elementi del dataset in batch di dimensione 64.
+    #Precarica i dati per migliorare l'efficienza.
+    #Restituisce il dataset preprocessato.
+
+def create_dataset(image_paths, labels): #prende in input il path delle immagini e le etichette associate
+    dataset = Dataset.from_tensor_slices((image_paths, labels)) #crea un dataset tensorflow dai tensori 'image_paths' e 'labels' 
+    #ed ogni elemento del dataset è una coppia
+    dataset = dataset.map(load_image, num_parallel_calls=tf.data.AUTOTUNE) #applica la funzione load_image a ogni elemento del dataset.
+    #tf.data.AUTOTUNE consente a tensorflow di determinare automaticamente il numero ottimale di thread di esecuzione per migliorare perf.
     dataset = dataset.shuffle(buffer_size=1000).batch(64).prefetch(buffer_size=tf.data.AUTOTUNE)
-    return dataset
+    #dataset.shuffle(buffer_size)=1000 --> mescola gli elementi del dataset con un buffer di 1000 elementi
+    #dataset.batch(64) --> raccoglie gli elementi del dataset in batch di dimensione 64
+    #dataset.prefetch(buffer_size=tf.data.AUTOTUNE) --> precarica i dati nel buffer per garantire che la GPU abbia sempre i dati pronti
+    #per l'addestramento, migliorando l'efficenza
+    return dataset #la funzione restituisce il dataset preprocessato
+
 
 # Creazione del DataFrame con i percorsi delle immagini e le etichette
+#Creo un elenco image_paths, contenente i percorsi completi delle immagini di training
 image_paths = [os.path.join(train_images_path, f"{int(img_id)}.jpg") for img_id in train_labels_df['GalaxyID']]
-labels = train_labels_df.iloc[:, 1:].values
+#Estraggo le etichette associate alle immagini dal Dataframe del csv solutions training, escludendo la colonna del GalaxyID
+labels = train_labels_df.iloc[:, 1:].values #seleziono tutte le colonne tranne la prima e le converto in un array numpy
 
 # Split del dataset in training e validation
 image_paths_train, image_paths_val, labels_train, labels_val = train_test_split(image_paths, labels, test_size=0.2, random_state=42)
@@ -62,7 +89,7 @@ model = Sequential([
     #Input: immagine di dimensione (64, 64, 3), cioè 64x64 pixel con 3 canali colori.
     #Output: Un set di 32 feature maps (mappe di caratteristiche), ciascuna di dimensioni (62, 62) ***Non ho ben capito***
     #Funzione di attivazione: ReLU introduce non-linearità.
-    Conv2D(32, (3, 3), activation='relu', input_shape=(64, 64, 3)),
+    Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
     #MaxPooling2D Layer (pooling 2x2):
     #Input: Le 32 feature maps di dimensioni (62, 62) dall'output del livello precedente (Conv2D).
     #Output: 32 feature maps ridotte a dimensioni (31, 31) attraverso l'operazione di pooling.
@@ -106,41 +133,45 @@ early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weig
 
 # Addestramento del modello
 history = model.fit(train_dataset, epochs=10, validation_data=val_dataset, callbacks=[early_stopping])
-
 # Salvataggio del modello
-model.save('galaxy_model.keras')
-print("Modello salvato in 'galaxy_model.keras'")
+# model.save('galaxy_model.keras')
+# print("Modello salvato in 'galaxy_model.keras'")
+
 
 #ipotetico:
 
 # Salvataggio dello storico dell'allenamento
-#with open('history.json', 'w') as f:
-    #json.dump(history.history, f)
-#print("Storico dell'allenamento salvato in 'history.json'")
+# with open('history.json', 'w') as f:
+#     json.dump(history.history, f)
+# print("Storico dell'allenamento salvato in 'history.json'")
 
 # Carica lo storico dell'allenamento
-#with open('history.json', 'r') as f:
-    #history = json.load(f)
+with open('history.json', 'r') as f:
+    history = json.load(f)
 
 # Plotting training & validation accuracy values
 plt.figure(figsize=(12, 4))
+
+# Sotto-grafico per l'accuratezza
 plt.subplot(1, 2, 1)
-plt.plot(history.history['accuracy'])
-plt.plot(history.history['val_accuracy'])
+plt.plot(history['accuracy'], label='Train')
+plt.plot(history['val_accuracy'], label='Validation')
 plt.title('Model accuracy')
 plt.ylabel('Accuracy')
 plt.xlabel('Epoch')
-plt.legend(['Train', 'Validation'], loc='upper left')
+plt.legend(loc='upper left')
 
-# Plotting training & validation loss values
+# Sotto-grafico per la perdita
 plt.subplot(1, 2, 2)
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
+plt.plot(history['loss'], label='Train')
+plt.plot(history['val_loss'], label='Validation')
 plt.title('Model loss')
 plt.ylabel('Loss')
 plt.xlabel('Epoch')
-plt.legend(['Train', 'Validation'], loc='upper left')
+plt.legend(loc='upper left')
+
 plt.show()
+
 
 #Per caricarlo in futuro:
 model = tf.keras.models.load_model('galaxy_model.keras')
@@ -166,3 +197,21 @@ predictions_df.insert(0, 'GalaxyID', [int(f.split('.')[0]) for f in test_filenam
 predictions_df.to_csv('galaxies_predictions.csv', index=False)
 
 print("Predizioni salvate in 'galaxies_predictions.csv'")
+
+# Fare predizioni sul set di validazione
+val_predictions = model.predict(val_dataset)
+val_predictions_binary = (val_predictions > 0.5).astype(int)
+
+# Fare predizione sul test set
+predictions_binary = (predictions > 0.5).astype(int)
+# Fare predizioni binarie per le etichette
+val_labels_binary = (labels_val > 0.5).astype(int)
+
+# Creare e visualizzare la confusion matrix per ogni classe
+for i in range(val_labels_binary.shape[1]):
+    cm = confusion_matrix(val_labels_binary[:, i], val_predictions_binary[:, i])
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot()
+    plt.title(f'Confusion Matrix for Class {i}')
+    plt.show()
+
