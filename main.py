@@ -1,208 +1,231 @@
-
-#Step 1
-#IMPORTARE LE LIBRERIE NECESSARIE
-
-#Al momento importo tutto le librerie che negli esercizi
-#fatti in classe abbiamo importato, successivamente valuterò
-#quali tenere e quali non mi servono.
-import os
-import numpy as np
-import pandas as pd
 import tensorflow as tf
-import keras 
-#from tensorflow.keras.preprocessing.image import ImageDataGenerator
-#from keras.api.preprocessing.image import ImageDataGenerator
-#from tensorflow.keras.models import Sequential
-from keras.src.models import Sequential
-#from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from keras.src.layers import Dense, Conv2D, MaxPooling2D, Flatten, Dropout
-#from tensorflow.keras.optimizers import Adam
-from keras.src.optimizers import Adam
-from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
+from tensorflow._api.v2.data import Dataset
 from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from keras.src.models import Sequential
+from keras.src.layers import Dense, Flatten, Conv2D, MaxPooling2D, Dropout
+from keras.src.callbacks import EarlyStopping
+import pandas as pd
+import numpy as np
+import os
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, precision_score, recall_score, f1_score
+from keras.src.utils import to_categorical
+from PIL import Image
+import matplotlib.pyplot as plt
+from keras.src.utils import image_dataset_from_directory
+import json
+from keras.src.regularizers import L2
 
-###############################################################
-
-#STEP 2:
-#CARICARE IL DATASET
-#Ho messo il dataset nella cartella data; la quale è già
-#suddivisa in:
-#-images_test_rev1: contiene 61578 immagini jpg di galassie
-#-images_training_rev1: contiene 79975 immagini jpg di galassie
-
-#le immagini non sono divise in classi, dentro le cartelle
-#ci sono immagini e basta.
-#Si potrebbe forse dividerle in cartelle? Ma in quel caso
-#bisogna valutare come.
-
-# Percorsi ai dataset
-#Path computer fisso:
-train_images_path = 'data/images_training_rev1'
-test_image_path = 'data/images_test_rev1'
+# # Percorsi ai dataset
+train_images_path = 'data/images_training_rev1/images_training_rev1'
+test_images_path = 'data/images_test_rev1/images_test_rev1'
 train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
-#Path computer ITS:
+
+# Percorsi ai dataset sul portatile
+# train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
+# test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
+# train_labels_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/training_solutions_rev1/training_solutions_rev1.csv' 
+
+# Caricamento delle etichette
+train_labels_df = pd.read_csv(train_labels_path)
+
+# Funzione per creare il dataset tf.data
+
+#In sintesi:
+    #Carica l'immagine dal percorso specificato (img_path).
+    #Decodifica l'immagine come JPEG con 3 canali (RGB).
+    #Ridimensiona l'immagine a 64x64 pixel.
+    #Normalizza i valori dei pixel tra 0 e 1.
+    #Restituisce l'immagine preprocessata e l'array delle etichette.
+
+def load_image(img_path, label): #prende in input il path dell'immagine e l'etichetta associata(label)
+    img = tf.io.read_file(img_path) #memorizzo nella variabile 'img' il percorso dell'immagine come tensore grezzo di byte
+    img = tf.image.decode_jpeg(img, channels=3) #decodifica l'immagine jpeg nel tensore 'img' specificando che l'immagine ha 3 canali (RGB)
+    img = tf.image.resize(img, [128, 128]) #ridimensiona l'immagine in 64x64 pixel
+    img = img / 255.0  # Normalizzazione dei pixel dell'immagine per essere compresi tra 0 e 1 
+    return img, label #restituisco l'immagine preprocessata e l'etichetta associata
+
+#In sintesi:
+    #Crea un dataset TensorFlow dai percorsi delle immagini (image_paths) e dalle etichette (labels).
+    #Applica la funzione load_image a ciascun elemento del dataset in parallelo.
+    #Mescola il dataset con un buffer di 1000 elementi.
+    #Raggruppa gli elementi del dataset in batch di dimensione 64.
+    #Precarica i dati per migliorare l'efficienza.
+    #Restituisce il dataset preprocessato.
+
+def create_dataset(image_paths, labels): #prende in input il path delle immagini e le etichette associate
+    dataset = Dataset.from_tensor_slices((image_paths, labels)) #crea un dataset tensorflow dai tensori 'image_paths' e 'labels' 
+    #ed ogni elemento del dataset è una coppia
+    dataset = dataset.map(load_image, num_parallel_calls=tf.data.AUTOTUNE) #applica la funzione load_image a ogni elemento del dataset.
+    #tf.data.AUTOTUNE consente a tensorflow di determinare automaticamente il numero ottimale di thread di esecuzione per migliorare perf.
+    dataset = dataset.shuffle(buffer_size=1000).batch(64).prefetch(buffer_size=tf.data.AUTOTUNE)
+    #dataset.shuffle(buffer_size)=1000 --> mescola gli elementi del dataset con un buffer di 1000 elementi
+    #dataset.batch(64) --> raccoglie gli elementi del dataset in batch di dimensione 64
+    #dataset.prefetch(buffer_size=tf.data.AUTOTUNE) --> precarica i dati nel buffer per garantire che la GPU abbia sempre i dati pronti
+    #per l'addestramento, migliorando l'efficenza
+    return dataset #la funzione restituisce il dataset preprocessato
 
 
-# Caricare le etichette
-train_labels = pd.read_csv(train_labels_path)
+# Creazione del DataFrame con i percorsi delle immagini e le etichette
+#Creo un elenco image_paths, contenente i percorsi completi delle immagini di training
+image_paths = [os.path.join(train_images_path, f"{int(img_id)}.jpg") for img_id in train_labels_df['GalaxyID']]
+#Estraggo le etichette associate alle immagini dal Dataframe del csv solutions training, escludendo la colonna del GalaxyID
+labels = train_labels_df.iloc[:, 1:].values #seleziono tutte le colonne tranne la prima e le converto in un array numpy
 
+# Split del dataset in training e validation
+image_paths_train, image_paths_val, labels_train, labels_val = train_test_split(image_paths, labels, test_size=0.2, random_state=42)
 
-# Aggiungere il percorso completo alle immagini nel DataFrame
-train_labels['GalaxyID'] = train_labels['GalaxyID'].apply(lambda x: os.path.join(train_images_path, f'{x}.jpg'))
-#Questa lambda prende un argomento x (che è l'ID di una galassia)
-# e restituisce il percorso completo al file immagine 
-# corrispondente utilizzando os.path.join per combinare 
-# train_images_path e x con l'estensione .jpg.
+# Creazione dei dataset tf.data
+train_dataset = create_dataset(image_paths_train, labels_train)
+val_dataset = create_dataset(image_paths_val, labels_val)
 
-# Quindi, se train_images_path è data/images_training_rev1 
-# e un GalaxyID è 123456, la funzione lambda genererà il percorso 
-# data/images_training_rev1/123456.jpg.
-
-
-# Verificare se i file esistonox
-print(train_labels.head())
-
-###############################################################
-
-#STEP 3: UTILIZZARE ImageDataGenerator PER LA NORMALIZZAZIONE
-# E LA DIVISIONE DEI DATI
-
-#ImageDataGenerator carica e preprocessa le immagini in modo 
-# dinamico durante l'addestramento. Questo significa che non tutte
-# le immagini devono essere caricate in memoria contemporaneamente, 
-# il che è particolarmente utile quando si lavora con dataset di 
-# grandi dimensioni.
-
-# Definire il generatore di immagini con normalizzazione e divisione per validazione
-datagen = ImageDataGenerator(rescale=1.0/255.0, validation_split=0.2)
-print(datagen)
-
-#Usare flow_from_dataframe con validation_split 
-# semplifica il processo di suddivisione del dataset in training 
-# e validation set. Non devi gestire manualmente la suddivisione 
-# dei dati, la normalizzazione e la preparazione dei batch.
-
-# Generatore di immagini per il training set
-train_generator = datagen.flow_from_dataframe(
-    dataframe=train_labels,
-    x_col='GalaxyID',
-    y_col=train_labels.columns[1:].tolist(),
-    target_size=(128, 128),  # mantenere la risoluzione originale
-    batch_size=32,
-    class_mode='raw',  # poiché le etichette sono distribuzioni di probabilità
-    subset='training'
-)
-
-#dataframe=train_labels: Usa il DataFrame train_labels per ottenere i percorsi delle immagini e le etichette.
-#x_col='GalaxyID': Colonna del DataFrame che contiene i percorsi delle immagini.
-#y_col=train_labels.columns[1:].tolist(): Colonne del DataFrame che contengono le etichette (distribuzioni di probabilità).
-#target_size=(128, 128): Dimensioni a cui ridimensionare tutte le immagini.
-#batch_size=32: Numero di immagini per batch.
-#class_mode='raw': Utilizza le etichette esattamente come sono nel DataFrame.
-#subset='training': Indica che questo generatore sarà utilizzato per il training set.
-
-#flow_from_dataframe: Questo metodo consente di creare generatori 
-# di immagini direttamente da un DataFrame di pandas, che può 
-# essere molto utile quando si ha un dataset in cui i percorsi 
-# delle immagini e le relative etichette sono memorizzati in un 
-# DataFrame.
-
-# Generatore di immagini per il validation set
-validation_generator = datagen.flow_from_dataframe(
-    dataframe=train_labels,
-    x_col='GalaxyID',
-    y_col=train_labels.columns[1:].tolist(),
-    target_size=(128, 128),
-    batch_size=32,
-    class_mode='raw',
-    subset='validation'
-)
-
-###############################################################
-
-#STEP 4: DEFINIRE IL MODELLO
-
-# Definire il modello
+# Creazione del modello della rete neurale
+#Modello CNN (rete neurale convoluzionale)
 model = Sequential([
+#Spiegazione:
+#Kernel: Un kernel (o filtro) è una matrice 2D (in questo caso 3x3) che scorre sull'immagine di input e calcola il prodotto scalare tra il kernel e la regione dell'immagine coperta dal kernel.
+#Padding: Se non viene utilizzato il padding (cioè, il padding è 'valid'), la dimensione dell'output si riduce rispetto all'input. Con un kernel 3x3, ogni convoluzione riduce la dimensione dell'immagine di 2 (1 pixel da ogni lato). Quindi, l'immagine di dimensione 64x64 diventa 62x62.
+#Numero di Filtri: Qui specifichiamo che vogliamo 32 filtri, quindi otteniamo 32 feature maps. Ogni filtro è responsabile dell'estrazione di diverse caratteristiche dall'immagine di input (bordo, texture, ecc.).
+    #Conv2D Layer (32 filtri, kernel 3x3, ReLU):
+    #Input: immagine di dimensione (64, 64, 3), cioè 64x64 pixel con 3 canali colori.
+    #Output: Un set di 32 feature maps (mappe di caratteristiche), ciascuna di dimensioni (62, 62) ***Non ho ben capito***
+    #Funzione di attivazione: ReLU introduce non-linearità.
     Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
+    #MaxPooling2D Layer (pooling 2x2):
+    #Input: Le 32 feature maps di dimensioni (62, 62) dall'output del livello precedente (Conv2D).
+    #Output: 32 feature maps ridotte a dimensioni (31, 31) attraverso l'operazione di pooling.
+    #Operazione: Prende il massimo valore in ogni finestra 2x2 ***Non ho ben capito***
     MaxPooling2D((2, 2)),
+    #Conv2D Layer (64 filtri, kernel 3x3, ReLU):
+    #Input: Le 32 feature maps di dimensioni (31, 31) (output precedente).
+    #Output: Un set di 64 feature maps, ciascuna di dimensioni (29, 29).
+    #Funzione di Attivazione: ReLU.
     Conv2D(64, (3, 3), activation='relu'),
+    #MaxPooling2D Layer (pooling 2x2):
+    #Input: Le 64 feature maps di dimensioni (29, 29) (output precedente).
+    #Output: 64 feature maps ridotte a dimensioni (14, 14).
     MaxPooling2D((2, 2)),
-    Conv2D(128, (3, 3), activation='relu'),
-    MaxPooling2D((2, 2)),
+    #Flatten Layer:
+    #Input: Le 64 feature maps di dimensioni (14, 14) (output precedente).
+    #Output: Un vettore unidimensionale (1D) di lunghezza 12544 (64 * 14 * 14).
     Flatten(),
-    Dense(512, activation='relu'),
+    #Funzione: Disattiva casualmente il 50% dei neuroni durante l'addestramento per prevenire l'overfitting.
     Dropout(0.5),
-    Dense(37, activation='softmax')  # Assumendo che ci siano 37 classi
+    #Dense Layer (128 neuroni, ReLU):
+    #Input: Il vettore 1D di lunghezza 12544.
+    #Output: Un vettore 1D di lunghezza 128.
+    #Funzione di Attivazione: ReLU.
+    Dense(128, activation='relu'),
+    #Output Layer (37 neuroni, sigmoid):
+    #Input: Il vettore 1D di lunghezza 128.
+    #Output: Un vettore 1D di lunghezza 37, con valori tra 0 e 1.
+    #Funzione di Attivazione: Sigmoid (permette la regressione multilabel).
+    Dense(37, activation='sigmoid')  # Utilizziamo sigmoid per una regressione multilabel
 ])
 
-# Compilare il modello
-model.compile(optimizer=Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+model.compile(optimizer='adam',
+              loss='binary_crossentropy',
+              metrics=['accuracy'])
 
-# Visualizzare il sommario del modello
 model.summary()
 
-###############################################################
+# Callback per l'early stopping
+early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
 
-#STEP 5: ADDESTRAMENTO DEL MODELLO
+# Addestramento del modello
+history = model.fit(train_dataset, epochs=20, validation_data=val_dataset, callbacks=[early_stopping])
+# Salvataggio del modello
+model.save('galaxy_model.keras')
+print("Modello salvato in 'galaxy_model.keras'")
+# Salvataggio dello storico dell'allenamento
+with open('history.json', 'w') as f:
+    json.dump(history.history, f)
+print("Storico dell'allenamento salvato in 'history.json'")
 
-# Addestrare il modello
-history = model.fit(
-    train_generator,
-    epochs=10,  # numero di epoche, puoi cambiarlo
-    validation_data=validation_generator
-)
+# Carica lo storico dell'allenamento
+with open('history.json', 'r') as f:
+    history = json.load(f)
 
-###############################################################
+# Plotting training & validation accuracy values
+plt.figure(figsize=(6, 4))
 
-#STEP 6: VALUTAZIONE DEL MODELLO E SALVATAGGIO
-
-# Valutare il modello
-val_loss, val_acc = model.evaluate(validation_generator)
-print(f'Validation Loss: {val_loss}, Validation Accuracy: {val_acc}')
-
-# Salvare il modello
-model.save('galaxy_classifier_model.h5')
-
-# Salvare la cronologia dell'addestramento
-pd.DataFrame(history.history).to_csv('training_history.csv', index=False)
-
-###############################################################
-
-#STEP 7: VISUALIZZARE I RISULTATI
-
-plt.figure(figsize=(12, 4))
-plt.subplot(1, 2, 1)
-plt.plot(history.history['accuracy'], label='Train Accuracy')
-plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-plt.legend()
-plt.xlabel('Epochs')
+# Sotto-grafico per l'accuratezza
+plt.plot(history['accuracy'], label='Train')
+plt.plot(history['val_accuracy'], label='Validation')
+plt.title('Model accuracy')
 plt.ylabel('Accuracy')
-plt.title('Training and Validation Accuracy')
+plt.xlabel('Epoch')
+plt.legend(loc='upper left')
 
-plt.subplot(1, 2, 2)
-plt.plot(history.history['loss'], label='Train Loss')
-plt.plot(history.history['val_loss'], label='Validation Loss')
-plt.legend()
-plt.xlabel('Epochs')
+plt.figure(figsize=(6, 4))
+
+# Sotto-grafico per la perdita
+plt.plot(history['loss'], label='Train')
+plt.plot(history['val_loss'], label='Validation')
+plt.title('Model loss')
 plt.ylabel('Loss')
-plt.title('Training and Validation Loss')
+plt.xlabel('Epoch')
+plt.legend(loc='upper left')
 
 plt.show()
 
-###############################################################
+#Per caricarlo in futuro:
+model = tf.keras.models.load_model('galaxy_model.keras')
 
-#STEP 8: MATRICE DI CONFUSIONE
+# ---- Aggiungi questa parte per fare le predizioni sui dati di test ---- #
 
-# Predizioni sul validation set
-y_true = validation_generator.classes
-y_pred = model.predict(validation_generator)
-y_pred_classes = np.argmax(y_pred, axis=1)
+# Caricamento delle immagini di test
+test_files = os.listdir(test_images_path)
+test_image_paths = [os.path.join(test_images_path, file) for file in test_files]
 
-# Calcolare la matrice di confusione
-cm = confusion_matrix(y_true, y_pred_classes)
-disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-disp.plot()
-plt.show()
+# Creazione del dataset tf.data per le immagini di test
+test_dataset = create_dataset(test_image_paths, labels=None)
+
+# Predizione delle etichette per il test set
+predictions = model.predict(test_dataset, verbose=1)
+
+# Creazione del DataFrame con le predizioni
+test_filenames = [os.path.basename(path) for path in test_image_paths]
+predictions_df = pd.DataFrame(predictions, columns=[f'Class{i}' for i in range(predictions.shape[1])])
+predictions_df.insert(0, 'GalaxyID', [int(f.split('.')[0]) for f in test_filenames])
+
+# Salvataggio delle predizioni in un file CSV
+predictions_df.to_csv('galaxies_predictions.csv', index=False)
+
+print("Predizioni salvate in 'galaxies_predictions.csv'")
+
+#Carico il mio test prediction
+test_predictions = pd.read_csv('galaxies_predictions.csv')
+
+#Carico i benchmark
+#Benchmark con soli 1:
+benchmark_ones = pd.read_csv('benchmark/all_ones_benchmark/all_ones_benchmark.csv')
+#Benchmark con soli 0:
+benchmark_zeros = pd.read_csv('benchmark/all_zeros_benchmark/all_zeros_benchmark.csv')
+#Benchmark che valuta il pixel centrale:
+benchmark_central_pixel = pd.read_csv('benchmark/central_pixel_benchmark/central_pixel_benchmark.csv')
+
+# Funzione per calcolare l'accuratezza di un benchmark
+def calculate_accuracy(predictions, benchmark):
+    return np.mean(np.argmax(predictions.values[:, 1:], axis=1) == np.argmax(benchmark.values[:, 1:], axis=1))
+
+# Calcolo l'accuratezza paragonando le mie prediction ai benchmark
+accuracy_ones = calculate_accuracy(test_predictions, benchmark_ones)
+accuracy_zeros = calculate_accuracy(test_predictions, benchmark_zeros)
+accuracy_central_pixel = calculate_accuracy(test_predictions, benchmark_central_pixel)
+
+print(f'Accuracy with All Ones Benchmark: {accuracy_ones}')
+print(f'Accuracy with All Zeros Benchmark: {accuracy_zeros}')
+print(f'Accuracy with Central Pixel Benchmark: {accuracy_central_pixel}')
+# significa che il 62.38% delle predizioni totali del modello (sia positive che negative) corrispondono a quelle del benchmark Central Pixel.
+
+# Calcoli generali
+y_true = np.argmax(benchmark_central_pixel.values[:, 1:], axis=1)
+y_pred = np.argmax(test_predictions.values[:, 1:], axis=1)
+
+# Precision, Recall, F1 Score
+precision = precision_score(y_true, y_pred, average='weighted')
+f1 = f1_score(y_true, y_pred, average='weighted')
+
+print(f'Precision: {precision}') #implica che quasi tutte le galassie che il tuo modello ha predetto come positive sono effettivamente positive secondo il benchmark Central Pixel.
+print(f'F1 Score: {f1}') # rappresenta un bilancio tra precisione e recall, suggerendo che il modello è abbastanza bilanciato ma potrebbe migliorare nel catturare tutte le istanze positive.
