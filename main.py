@@ -88,13 +88,13 @@ model = Sequential([
 #Numero di Filtri: Qui specifichiamo che vogliamo 32 filtri, quindi otteniamo 32 feature maps. Ogni filtro è responsabile dell'estrazione di diverse caratteristiche dall'immagine di input (bordo, texture, ecc.).
     #Conv2D Layer (32 filtri, kernel 3x3, ReLU):
     #Input: immagine di dimensione (64, 64, 3), cioè 64x64 pixel con 3 canali colori.
-    #Output: Un set di 32 feature maps (mappe di caratteristiche), ciascuna di dimensioni (62, 62) ***Non ho ben capito***
+    #Output: Un set di 32 feature maps (mappe di caratteristiche), ciascuna di dimensioni (62, 62)
     #Funzione di attivazione: ReLU introduce non-linearità.
     Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
     #MaxPooling2D Layer (pooling 2x2):
     #Input: Le 32 feature maps di dimensioni (62, 62) dall'output del livello precedente (Conv2D).
     #Output: 32 feature maps ridotte a dimensioni (31, 31) attraverso l'operazione di pooling.
-    #Operazione: Prende il massimo valore in ogni finestra 2x2 ***Non ho ben capito***
+    #Operazione: Prende il massimo valore in ogni finestra 2x2
     MaxPooling2D((2, 2)),
     #Conv2D Layer (64 filtri, kernel 3x3, ReLU):
     #Input: Le 32 feature maps di dimensioni (31, 31) (output precedente).
