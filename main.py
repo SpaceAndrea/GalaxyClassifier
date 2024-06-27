@@ -232,9 +232,6 @@ print(f'Accuracy with Central Pixel Benchmark: {accuracy_central_pixel}')
 y_true = np.argmax(benchmark_central_pixel.values[:, 1:], axis=1)
 y_pred = np.argmax(test_predictions.values[:, 1:], axis=1)
 
-# Precision, Recall, F1 Score
-precision = precision_score(y_true, y_pred, average='weighted')
-f1 = f1_score(y_true, y_pred, average='weighted')
 
-#print(f'Precision: {precision}') #implica che quasi tutte le galassie che il tuo modello ha predetto come positive sono effettivamente positive secondo il benchmark Central Pixel.
+f1 = f1_score(y_true, y_pred, average='weighted')
 print(f'F1 Score: {f1}') # rappresenta un bilancio tra precisione e recall, suggerendo che il modello è abbastanza bilanciato ma potrebbe migliorare nel catturare tutte le istanze positive.
