@@ -17,14 +17,14 @@ import json
 from keras.src.regularizers import L2
 
 # # Percorsi ai dataset
-train_images_path = 'data/images_training_rev1/images_training_rev1'
-test_images_path = 'data/images_test_rev1/images_test_rev1'
-train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
+#train_images_path = 'data/images_training_rev1/images_training_rev1'
+#test_images_path = 'data/images_test_rev1/images_test_rev1'
+#train_labels_path = 'solutions/training_solutions_rev1/training_solutions_rev1.csv'
 
 # Percorsi ai dataset sul portatile
-# train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
-# test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
-# train_labels_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/training_solutions_rev1/training_solutions_rev1.csv' 
+train_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_training_rev1/images_training_rev1'
+test_images_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/images_test_rev1/images_test_rev1'
+train_labels_path = 'C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/training_solutions_rev1/training_solutions_rev1.csv' 
 
 # Caricamento delle etichette
 train_labels_df = pd.read_csv(train_labels_path)
@@ -205,6 +205,14 @@ benchmark_zeros = pd.read_csv('benchmark/all_zeros_benchmark/all_zeros_benchmark
 #Benchmark che valuta il pixel centrale:
 benchmark_central_pixel = pd.read_csv('benchmark/central_pixel_benchmark/central_pixel_benchmark.csv')
 
+#Path sul portatile
+#Benchmark con soli 1:
+benchmark_ones = pd.read_csv('C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/all_ones_benchmark/all_ones_benchmark.csv')
+#Benchmark con soli 0:
+benchmark_zeros = pd.read_csv('C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/all_zeros_benchmark/all_zeros_benchmark.csv')
+#Benchmark che valuta il pixel centrale:
+benchmark_central_pixel = pd.read_csv('C:/Users/AndreaBianchini/Downloads/galaxy-zoo-the-galaxy-challenge/central_pixel_benchmark/central_pixel_benchmark.csv')
+
 # Funzione per calcolare l'accuratezza di un benchmark
 def calculate_accuracy(predictions, benchmark):
     return np.mean(np.argmax(predictions.values[:, 1:], axis=1) == np.argmax(benchmark.values[:, 1:], axis=1))
@@ -217,6 +225,7 @@ accuracy_central_pixel = calculate_accuracy(test_predictions, benchmark_central_
 print(f'Accuracy with All Ones Benchmark: {accuracy_ones}')
 print(f'Accuracy with All Zeros Benchmark: {accuracy_zeros}')
 print(f'Accuracy with Central Pixel Benchmark: {accuracy_central_pixel}')
+
 # significa che il 62.38% delle predizioni totali del modello (sia positive che negative) corrispondono a quelle del benchmark Central Pixel.
 
 # Calcoli generali
@@ -227,5 +236,5 @@ y_pred = np.argmax(test_predictions.values[:, 1:], axis=1)
 precision = precision_score(y_true, y_pred, average='weighted')
 f1 = f1_score(y_true, y_pred, average='weighted')
 
-print(f'Precision: {precision}') #implica che quasi tutte le galassie che il tuo modello ha predetto come positive sono effettivamente positive secondo il benchmark Central Pixel.
+#print(f'Precision: {precision}') #implica che quasi tutte le galassie che il tuo modello ha predetto come positive sono effettivamente positive secondo il benchmark Central Pixel.
 print(f'F1 Score: {f1}') # rappresenta un bilancio tra precisione e recall, suggerendo che il modello è abbastanza bilanciato ma potrebbe migliorare nel catturare tutte le istanze positive.

@@ -51,16 +51,19 @@ class_descriptions = {
 # Funzione per preprocessare l'immagine
 def preprocess_image(image_path):
     img = Image.open(image_path)
-    img = img.resize((128, 128))  # Dimensione che il modello si aspetta
-    img = np.array(img) / 255.0
-    img = np.expand_dims(img, axis=0)
+    img = img.resize((128, 128))  # Ridimensiona l'immagine a 128x128 pixel
+    img = np.array(img) / 255.0 # Normalizza l'immagine
+    img = np.expand_dims(img, axis=0) # Aggiunge una dimensione per l'input del modello
     return img
 
 # Funzione per fare la predizione
 def predict(image_path):
     img = preprocess_image(image_path)
-    predictions = model.predict(img)[0]
-    top_indices = predictions.argsort()[-3:][::-1]
+    predictions = model.predict(img)[0] # Esegue la predizione sul modello
+    top_indices = predictions.argsort()[-3:][::-1] # Ottiene le tre classi con la più alta probabilità
+    #argsort --> restituisce gli elementi in ordine crescente
+    #-3: --> seleziona gli ultimi 3 indici della lista, cioè le classi con probabilità più alta
+    #::-1 --> inverte l'ordine degli elementi selezionati (prob. più alta a prob. più bassa)
     top_classes = top_indices
     top_probabilities = predictions[top_indices]
     return list(zip(top_classes, top_probabilities))
@@ -68,17 +71,17 @@ def predict(image_path):
 # Funzione per caricare l'immagine e fare la predizione
 def load_image():
     global top_predictions
-    file_path = filedialog.askopenfilename()
+    file_path = filedialog.askopenfilename() #apre la finestra di dialogo per aprire un file
     if file_path:
-        img = Image.open(file_path)
+        img = Image.open(file_path)     
         img = img.resize((250, 250))  # Ridimensiona per la visualizzazione
         img_tk = ImageTk.PhotoImage(img)
-        panel.config(image=img_tk)
+        panel.config(image=img_tk) #mostra l'immagine nella GUI
         panel.image = img_tk
 
         # Fai la predizione
         top_predictions = predict(file_path)
-        update_display()
+        update_display() #Aggiorno la visuale dei risultati
 
 # Funzione per aggiornare la visualizzazione
 def update_display():
